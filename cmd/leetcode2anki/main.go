@@ -2,14 +2,15 @@ package main
 
 import (
 	"flag"
-	"go/format"
-	"go/parser"
-	"go/token"
+	// "go/format"
+	// "go/parser"
+	// "go/token"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"io/ioutil"
 
 	"github.com/invzhi/ankit"
 	"github.com/invzhi/ankit/leetcode"
@@ -23,38 +24,39 @@ var (
 func init() {
 	flag.StringVar(&cfg.Path, "path", ".", "leetcode repo path")
 	flag.StringVar(&cfg.Source, "db", "leetcode.db", "sqlite3 filename")
-	flag.StringVar(&cfg.Lang, "lang", "golang", "programming language")
+	flag.StringVar(&cfg.Lang, "lang", "python3", "programming language")
 
 	flag.StringVar(&spec, "spec", "", "optional: the relative path of leetcode question that should be exported only")
 }
 
+func code(path string, _ leetcode.Lang) (string, error) {
+	b, err := ioutil.ReadFile(path)
+	return string(b), err
+}
+
 func question(path string, info os.FileInfo) (leetcode.Key, error) {
-	if path == "." || !info.IsDir() {
+	if path == "." {
 		return nil, nil
 	}
-
-	id, err := strconv.Atoi(path)
-	if err != nil {
+	// skip directory in repository
+	if info.IsDir() {
 		return nil, filepath.SkipDir
 	}
 
-	return leetcode.KeyID(id), filepath.SkipDir
-}
-
-func code(path string, _ leetcode.Lang) (string, error) {
-	fset := token.NewFileSet()
-
-	f, err := parser.ParseFile(fset, filepath.Join(path, "code.go"), nil, parser.ParseComments)
+	filename := filepath.Base(path)
+	ext := filepath.Ext(filename)
+	// only handle python file
+	if ext != ".py" {
+		return nil, nil
+	}
+	// identify leetcode question by title slug: filename
+	slug := strings.TrimSuffix(filename, ext)
+	id_s := strings.SplitN(slug, "-", 2)[0]
+	id, err := strconv.Atoi(id_s)
 	if err != nil {
-		return "", err
+		return nil, filepath.SkipDir
 	}
-
-	var w strings.Builder
-	if err := format.Node(&w, fset, f.Decls); err != nil {
-		return "", err
-	}
-
-	return w.String(), nil
+	return leetcode.KeyID(id), nil
 }
 
 func main() {
